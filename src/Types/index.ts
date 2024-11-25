@@ -1,4 +1,4 @@
-import { CanvasCurrentElement } from "./Elements";
+import { CanvasCurrentElement, CANVASElement } from "./Elements";
 
 export type TypeCanvasContext = "2d";
 
@@ -27,6 +27,7 @@ export interface CanvasElementPropertiesTransform {
 }
 
 export interface CanvasElementProperties {
+	id: string;
 	x: number;
 	y: number;
 	fill: string;
@@ -66,26 +67,19 @@ export interface CanvasState {
 	canvas: HTMLCanvasElement | null;
 	width: number;
 	height: number;
-	elements: Map<string, { executable: CanvasElement; time: number }>;
 	isGroup: boolean;
 	typeContext: TypeCanvasContext;
 }
 
-export type CanvasElement = (state: Omit<CanvasState, "elements">) => void;
+export type CanvasElement<P extends CANVASElement = never> = (state: Omit<CanvasState, "elements">, props: P) => void;
 
-export interface PropsCanvasContext {
-	state: CanvasState;
-	pushElement: (id: string, time: number, element: CanvasElement) => number;
-	removeElement: (id: string, time: number) => void;
-	updateCanvas: () => void;
-	addEventListener: (type: string, listener: EventListener) => void;
-	removeEventListener: (type: string, listener: EventListener) => void;
-}
-
-export interface GroupState extends CanvasState {}
-
-export interface PropsGroupContext extends PropsCanvasContext {
-	state: GroupState;
+export interface PropsElementsContext {
+	canvas: HTMLCanvasElement | null;
+	elements: Array<CANVASElement>;
+	pushElement: (id: string, element: CANVASElement, executable: CanvasElement) => number;
+	removeElement: (id: string) => void;
+	updateElement: (id: string, element: CANVASElement, executable: CanvasElement) => void;
+	getElement: (id: string) => CANVASElement | null;
 }
 
 export type Path2D = Array<

@@ -1,8 +1,8 @@
-import React, { useCallback, useContext, useRef } from "react";
+import React, { useCallback, useEffect, useRef } from "react";
 import { CanvasElement } from "../Types";
-import { CanvasContext, GroupContext } from "../Context";
-import { applyForwardRef, applyStyledProps, useCanvas, usePropsImperativeHandle } from "../Utils";
-import { CANVASGroupElement } from "../Types/Elements";
+import { ElementsContext } from "../Context";
+import { useId, applyStyledProps, usePropsHandle, useElementesContext } from "../Utils";
+import { CANVASElement, CANVASGroupElement } from "../Types/Elements";
 
 type Props = Partial<
 	CANVASGroupElement & {
@@ -10,36 +10,24 @@ type Props = Partial<
 	}
 >;
 
-export const Group = applyForwardRef<Props, CANVASGroupElement>(({ children, ...p }, ref) => {
-	const [props] = usePropsImperativeHandle<CANVASGroupElement>(ref, p, {
-		fill: "transparent",
-		stroke: "#000000",
-		strokeWidth: 2,
-		opacity: 1,
-		x: 0,
-		y: 0,
-	});
-	const canvasContext = useContext(CanvasContext);
-	const elements = useRef<Map<string, { executable: CanvasElement; time: number; index: number }>>(new Map());
+export const Group: React.FC<Props> = ({ children, ...p }) => {
+	const id = useId();
+	const elements = useRef<Array<CANVASElement & { executable: CanvasElement }>>([]);
+	const elementesContext = useElementesContext();
 
-	const pushElement = useCallback(
-		(id: string, time: number, element: CanvasElement) => {
-			const index = elements.current.size;
-			elements.current.set(id, { executable: element, time, index });
-			return index;
+	usePropsHandle<CANVASGroupElement>(
+		id,
+		p,
+		{
+			elements: [],
+			fill: "transparent",
+			stroke: "#000000",
+			strokeWidth: 2,
+			opacity: 1,
+			x: 0,
+			y: 0,
 		},
-		[elements],
-	);
-
-	const removeElement = useCallback(
-		(id: string, time: number) => {
-			elements.current.delete(id);
-		},
-		[elements],
-	);
-
-	useCanvas(
-		({ canvas, height, width }) => {
+		({ canvas, height, width }, props) => {
 			const ctx = canvas?.getContext("2d");
 			const { compositeOperation, x, y } = props;
 
@@ -49,37 +37,56 @@ export const Group = applyForwardRef<Props, CANVASGroupElement>(({ children, ...
 					if (typeof compositeOperation === "string") {
 						ctx.globalCompositeOperation = compositeOperation;
 					}
-					const elementsArray = Array.from(elements.current.entries());
-					elementsArray.sort((a, b) => a[1].index - b[1].index);
-					elementsArray.forEach(([_, { executable }]) => {
-						executable({ canvas, width, height, isGroup: false, typeContext: canvasContext.state.typeContext });
+					elements.current.forEach(({ executable, ...props }) => {
+						executable({ canvas, width, height, isGroup: false, typeContext: "2d" }, props as never);
 					});
 				});
 				ctx.restore();
 			}
 		},
-		[props, canvasContext.state],
 	);
 
+	const pushElement = useCallback((id: string, element: CANVASElement, executable: CanvasElement) => {
+		let index = elements.current.findIndex((e) => e.id === id);
+		if (index !== -1) index = elements.current.length;
+		elements.current[index] = { ...element, id, executable };
+		return index;
+	}, []);
+
+	const removeElement = useCallback((id: string) => {
+		elements.current = elements.current.filter((e) => e.id !== id);
+	}, []);
+
+	const updateElement = useCallback((id: string, element: CANVASElement, executable: CanvasElement) => {
+		let index = elements.current.findIndex((e) => e.id === id);
+		if (index !== -1) index = elements.current.length;
+		elements.current[index] = { ...element, id, executable };
+	}, []);
+
+	const getElement = useCallback((id: string) => {
+		const index = elements.current.findIndex((e) => e.id === id);
+		if (index !== -1) {
+			return elements.current[index];
+		}
+		return null;
+	}, []);
+
+	useEffect(() => {
+		elements.current = [];
+	}, [children]);
+
 	return (
-		<GroupContext.Provider
+		<ElementsContext.Provider
 			value={{
-				state: {
-					canvas: canvasContext.state.canvas,
-					width: canvasContext.state.width,
-					height: canvasContext.state.height,
-					elements: elements.current,
-					isGroup: true,
-					typeContext: canvasContext.state.typeContext,
-				},
+				canvas: elementesContext.canvas,
+				elements: elements.current,
 				pushElement,
 				removeElement,
-				updateCanvas: canvasContext.updateCanvas,
-				addEventListener: canvasContext.addEventListener,
-				removeEventListener: canvasContext.removeEventListener,
+				updateElement,
+				getElement,
 			}}
 		>
 			{children}
-		</GroupContext.Provider>
+		</ElementsContext.Provider>
 	);
-});
+};

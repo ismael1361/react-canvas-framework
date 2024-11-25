@@ -1,6 +1,7 @@
 import React, { useRef, useState, useEffect, useContext, useCallback, forwardRef, useImperativeHandle, useLayoutEffect } from "react";
 import { TypeCanvasContext, CanvasElement } from "./Types";
-import { CanvasContext } from "./Context";
+import { ElementsContext } from "./Context";
+import { CANVASElement } from "./Types/Elements";
 
 interface CanvasProps extends React.HTMLAttributes<HTMLCanvasElement> {
 	width?: number;
@@ -12,76 +13,66 @@ interface CanvasProps extends React.HTMLAttributes<HTMLCanvasElement> {
 	onDestroy?: () => void;
 }
 
-export const Context = forwardRef<HTMLCanvasElement | null, CanvasProps>(({ children, width = 400, height = 400, type = "2d", onUpdate, onRender, onDestroy, ...props }, ref) => {
-	const elements = useRef<Map<string, { executable: CanvasElement; time: number; index: number }>>(new Map());
+export const Context: React.FC<CanvasProps> = ({ children, width = 400, height = 400, type = "2d", onUpdate, onRender, onDestroy, ...props }) => {
+	const elements = useRef<Array<CANVASElement & { executable: CanvasElement }>>([]);
 	const canvasRef = useRef<HTMLCanvasElement>(null);
-	const pendencyRef = useRef<number>(0);
 
-	const updateCanvas = useCallback(() => {
-		if (pendencyRef.current > 0) {
-			pendencyRef.current += 1;
-			return;
+	const pushElement = useCallback((id: string, element: CANVASElement, executable: CanvasElement) => {
+		let index = elements.current.findIndex((e) => e.id === id);
+		if (index !== -1) index = elements.current.length;
+		elements.current[index] = { ...element, id, executable };
+		return index;
+	}, []);
+
+	const removeElement = useCallback((id: string) => {
+		elements.current = elements.current.filter((e) => e.id !== id);
+	}, []);
+
+	const updateElement = useCallback((id: string, element: CANVASElement, executable: CanvasElement) => {
+		let index = elements.current.findIndex((e) => e.id === id);
+		if (index !== -1) index = elements.current.length;
+		elements.current[index] = { ...element, id, executable };
+	}, []);
+
+	const getElement = useCallback((id: string) => {
+		const index = elements.current.findIndex((e) => e.id === id);
+		if (index !== -1) {
+			return elements.current[index];
 		}
-		pendencyRef.current = 1;
+		return null;
+	}, []);
+
+	useEffect(() => {
+		let stoped = false,
+			animationFrame: number;
+
 		const loop = () => {
-			requestAnimationFrame(() => {
+			if (stoped) return;
+
+			animationFrame = requestAnimationFrame(() => {
 				const ctx = canvasRef.current?.getContext("2d");
 				if (ctx) {
 					ctx.clearRect(0, 0, width, height);
-					const elementsArray = Array.from(elements.current.entries());
-					elementsArray.sort((a, b) => a[1].index - b[1].index);
-					elementsArray.forEach(([_, { executable }]) => {
-						executable({ canvas: canvasRef.current, width, height, isGroup: false, typeContext: "2d" });
+					elements.current.forEach(({ executable, ...props }) => {
+						executable({ canvas: canvasRef.current, width, height, isGroup: false, typeContext: "2d" }, props as never);
 					});
 				}
-				if (pendencyRef.current > 1) {
-					pendencyRef.current = 1;
-					loop();
-				}
-				pendencyRef.current = 0;
 
 				if (typeof onUpdate === "function") {
 					onUpdate();
 				}
+
+				loop();
 			});
 		};
 
 		loop();
-	}, [width, height]);
 
-	const pushElement = useCallback(
-		(id: string, time: number, element: CanvasElement) => {
-			const index = elements.current.size;
-			elements.current.set(id, { executable: element, time, index });
-			updateCanvas();
-			return index;
-		},
-		[elements],
-	);
-
-	const removeElement = useCallback(
-		(id: string, time: number) => {
-			elements.current.delete(id);
-			updateCanvas();
-		},
-		[elements],
-	);
-
-	const addEventListener = useCallback((event: string, callback: (event: any) => void) => {}, []);
-
-	const removeEventListener = useCallback((event: string, callback: (event: any) => void) => {}, []);
-
-	useEffect(() => {
-		updateCanvas();
+		return () => {
+			stoped = true;
+			cancelAnimationFrame(animationFrame);
+		};
 	}, [width, height, elements]);
-
-	useImperativeHandle(
-		ref,
-		() => {
-			return canvasRef?.current as any;
-		},
-		[canvasRef?.current],
-	);
 
 	useLayoutEffect(() => {
 		if (typeof onRender === "function") {
@@ -95,22 +86,19 @@ export const Context = forwardRef<HTMLCanvasElement | null, CanvasProps>(({ chil
 		};
 	}, []);
 
+	useEffect(() => {
+		elements.current = [];
+	}, [children]);
+
 	return (
-		<CanvasContext.Provider
+		<ElementsContext.Provider
 			value={{
-				state: {
-					canvas: canvasRef.current,
-					width,
-					height,
-					elements: elements.current,
-					isGroup: false,
-					typeContext: "2d",
-				},
+				canvas: canvasRef.current,
+				elements: elements.current,
 				pushElement,
 				removeElement,
-				updateCanvas,
-				addEventListener,
-				removeEventListener,
+				updateElement,
+				getElement,
 			}}
 		>
 			<canvas
@@ -120,6 +108,6 @@ export const Context = forwardRef<HTMLCanvasElement | null, CanvasProps>(({ chil
 				{...props}
 			></canvas>
 			{children}
-		</CanvasContext.Provider>
+		</ElementsContext.Provider>
 	);
-});
+};

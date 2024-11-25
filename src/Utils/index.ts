@@ -1,6 +1,5 @@
-import { forwardRef } from "react";
-import { CanvasCurrentElement } from "../Types/Elements";
-import { GlobalSettingsStyled, HandlerProps } from "../Types";
+import { useState } from "react";
+import { GlobalSettingsStyled } from "../Types";
 
 export * from "./canvas";
 export * from "./elements";
@@ -11,7 +10,10 @@ export const generateUniqueId = (prefix = "id") => {
 	return `${prefix}_${timestamp}_${randomNum}`;
 };
 
-export const applyForwardRef = <P extends Object, T extends P>(render: React.ForwardRefRenderFunction<HandlerProps<T>, P>) => forwardRef<HandlerProps<T>, P>(render);
+export const useId = () => {
+	const [id] = useState(generateUniqueId());
+	return id;
+};
 
 export const applyStyledProps = (ctx: CanvasRenderingContext2D, props: Partial<GlobalSettingsStyled>, draw?: (ctx: CanvasRenderingContext2D) => void) => {
 	const { x = 0, y = 0, fill, stroke, strokeWidth, opacity, boxShadow, filter, lineCap, lineDashOffset, lineJoin, transform } = props;

@@ -32,6 +32,7 @@ export interface CANVASGroupElement extends Partial<GlobalSettingsStyled> {
 		| "luminosity";
 	x: number;
 	y: number;
+	elements: CANVASElement[];
 }
 
 export interface CANVASLineElement extends Partial<GlobalSettingsStyled> {
@@ -102,3 +103,14 @@ export interface CANVASTextElement extends Partial<GlobalSettingsStyled> {
 	fontVariantCaps: "normal" | "small-caps" | "all-small-caps" | "petite-caps" | "all-petite-caps" | "unicase" | "titling-caps";
 	direction: "ltr" | "rtl" | "inherit";
 }
+
+export type CANVASElement =
+	| CANVASGroupElement
+	| CANVASLineElement
+	| CANVASCircleElement
+	| CANVASRectElement
+	| CANVASArcElement
+	| CANVASEllipseElement
+	| CANVASPathElement
+	| CANVASImageElement
+	| CANVASTextElement;

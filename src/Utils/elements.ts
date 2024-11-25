@@ -1,10 +1,10 @@
-import { ForwardedRef, useContext, useEffect, useImperativeHandle, useState } from "react";
-import { GlobalSettingsStyled, HandlerProps } from "../Types";
-import { CanvasCurrentElement } from "../Types/Elements";
-import { CanvasContext } from "../Context";
-import { useCanvasContext } from "./canvas";
+import { useEffect, useState } from "react";
+import { CanvasElement, GlobalSettingsStyled, HandlerProps } from "../Types";
+import { CanvasCurrentElement, CANVASElement } from "../Types/Elements";
+import { useElementesContext } from "./canvas";
 
 export const getElementProperties = <P extends Object>(
+	id: string,
 	props: P | CanvasCurrentElement<P>,
 	ctx?: CanvasRenderingContext2D | null,
 	alternativeProps?: P | CanvasCurrentElement<P>,
@@ -39,6 +39,7 @@ export const getElementProperties = <P extends Object>(
 
 	return {
 		...(props as P),
+		id,
 		x: (props as any)?.x ?? (alternativeProps as any)?.x ?? 0,
 		y: (props as any)?.y ?? (alternativeProps as any)?.y ?? 0,
 		fill: (props as any)?.fill ?? (alternativeProps as any)?.fill ?? (ctx?.fillStyle as string) ?? "black",
@@ -76,10 +77,14 @@ export const getElementProperties = <P extends Object>(
 	};
 };
 
-const useEllementProperties = <P extends Object>(initialProps: Partial<P>, defaultProps: P & Partial<GlobalSettingsStyled>): [CanvasCurrentElement<P>, HandlerProps<P>, CanvasCurrentElement<P>] => {
+const useEllementProperties = <P extends Object>(
+	id: string,
+	initialProps: Partial<P>,
+	defaultProps: P & Partial<GlobalSettingsStyled>,
+): [CanvasCurrentElement<P>, HandlerProps<P>, CanvasCurrentElement<P>] => {
 	const [originalProps, setOriginalProps] = useState<P & Partial<GlobalSettingsStyled>>({ ...defaultProps, ...initialProps });
 	const [props, setProps] = useState<P & Partial<GlobalSettingsStyled>>({ ...defaultProps, ...initialProps });
-	const canvasContext = useContext(CanvasContext);
+	const elementesContext = useElementesContext();
 
 	useEffect(() => {
 		setProps((pre) => {
@@ -87,11 +92,11 @@ const useEllementProperties = <P extends Object>(initialProps: Partial<P>, defau
 		});
 	}, [initialProps]);
 
-	const canvas = canvasContext?.state.canvas;
+	const canvas = elementesContext.canvas;
 	const ctx = canvas?.getContext("2d");
 
-	const actualProps = getElementProperties<P>(props as any, ctx);
-	const previousProps = getElementProperties<P>(originalProps as any, ctx);
+	const actualProps = getElementProperties<P>(id, props as any, ctx);
+	const previousProps = getElementProperties<P>(id, originalProps as any, ctx);
 
 	const toString = () => {
 		return JSON.stringify(actualProps);
@@ -102,7 +107,6 @@ const useEllementProperties = <P extends Object>(initialProps: Partial<P>, defau
 		setProps((pre) => {
 			return { ...pre, ...props };
 		});
-		canvasContext?.updateCanvas();
 	};
 
 	const getAttribute = <k extends keyof CanvasCurrentElement<P>>(key: k): ReturnType<typeof getElementProperties<P>>[k] => {
@@ -138,17 +142,11 @@ const useEllementProperties = <P extends Object>(initialProps: Partial<P>, defau
 	];
 };
 
-export const usePropsImperativeHandle = <P extends Object>(ref: ForwardedRef<HandlerProps<P>>, initialProps: Partial<P>, defaultProps: P) => {
-	const [props, handlerProps, originalProps] = useEllementProperties<P>(initialProps, defaultProps);
-	const canvasContext = useCanvasContext();
+export const usePropsHandle = <P extends CANVASElement>(id: string, initialProps: Partial<P>, defaultProps: P, callback: CanvasElement<P>) => {
+	const [props] = useEllementProperties<P>(id, initialProps, defaultProps);
+	const elementesContext = useElementesContext();
 
-	useImperativeHandle(
-		ref,
-		() => {
-			return handlerProps;
-		},
-		[props, canvasContext],
-	);
-
-	return [props, handlerProps, originalProps] as const;
+	useEffect(() => {
+		elementesContext.updateElement(id, props as any, callback);
+	}, [props, callback, elementesContext]);
 };
